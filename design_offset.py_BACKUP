@@ -1,0 +1,111 @@
+import SDSSmodules.yanny as y
+import numpy as n
+import os
+from glob import glob
+from astropy.coordinates import SkyCoord, EarthLocation, AltAz
+from astropy import units as u
+from astropy.time import Time
+import sys
+import fitsio
+import matplotlib.pyplot as plt
+
+# python design_offset.py
+
+# PROCEDURE
+# (1) FROM INDIVIDUAL spec FILES: READ THE OBSERVED RA & DEC, CALCULATE THE OBSERVED HOUR ANGLE & ALTITUDE FOR A SINGLE OBJECT
+# (2) FROM plateHoles FILES: FOR A GIVEN OBJECT, READ THE DESIGN RA & DEC, CALCULATE THE DESIGN HOUR ANGLE & ALTITUDE
+
+# READ THE FILEPATHS OF THE SPECTRA IN THE SPECTRAL FOLDER
+spectralDir   = os.path.normpath('/Volumes/T2TB/Isotropy/spectra/SDSS_DR12/QSO')
+spectralList  = glob(os.path.join(spectralDir,'*.fits'))
+print len(spectralList)
+
+# CREATE THE LIST OF PLATES
+plateList = []
+for file in spectralList:
+    plate = file.split('-')[1]
+    plateList.append(plate)
+plateList = n.unique(plateList)
+print len(plateList)
+
+# LEAVE ONLY A SINGLE FILE FOR EACH PLATE
+shortFileList = []
+for plate in plateList:
+    print plate
+    for file in spectralList:
+        fileplate = file.split('-')[1]
+        if fileplate == plate:
+            shortFileList.append(file)
+            break
+    spectralList = [spec for spec in spectralList if plate not in spec]
+    print len(spectralList)
+print len(shortFileList)
+spectralList = shortFileList
+
+# DEFINE plateHoles FILE LIST (to be used in calculations below) 
+plateHolesDir  = os.path.normpath('/Volumes/T2TB/Isotropy/spectra/SDSS_DR12/plateHoles')
+plateHolesList = glob(os.path.join(plateHolesDir,'*.par'))
+
+# DEFINE OBSERVATORY COORDINATES (to be used in calculations below)
+# APO Coordinates
+APO = EarthLocation.of_site('Apache Point Observatory')
+lat = APO.latitude.degree
+lon = APO.longitude.degree
+print 'APO Location: Lat = {0:.3}, Lon = {1:.3}'.format(lat, lon)
+
+deltaRAarray  = []
+deltaDecarray = []
+for file in spectralList:
+    print file
+    # read the header of the fits file
+    h       = fitsio.read_header(file,0)
+    # read the RA & Dec of telescope pointing at observation (raPointObs & decPointObs)
+    raPointObs   = h['RA']
+    decPointObs  = h['DEC']
+    # read the designed RA & Dec of telescope pointing (raPointDes & decPointDes)
+    raPointDes   = h['RADEG']
+    decPointDes  = h['DECDEG']
+
+    deltaRA  = raPointObs - raPointDes
+    deltaDec = decPointObs - decPointDes
+    deltaRAarray.append(deltaRA)
+    deltaDecarray.append(deltaDec)
+
+deltaRAarray = n.array(deltaRAarray)
+deltaDecarray = n.array(deltaDecarray)
+deltaOffset = n.sqrt(deltaRAarray**2 + deltaDecarray**2)
+
+flag = 1
+nbins = 30
+if flag == 0:
+    fig, ax = plt.subplots(1, 2)
+    ax[0].hist(deltaRAarray,  bins = nbins, histtype = 'bar', normed = True)
+    ax[1].hist(deltaDecarray, bins = nbins, histtype = 'bar', normed = True)
+elif flag == 1:
+    fig, ax = plt.subplots(1, 1)
+    ax.hist(deltaOffset,   bins = nbins, histtype = 'bar', normed = True)
+    ax.set_xlabel('arcdeg')
+    ax.set_ylabel('Number of plates')
+plt.savefig('/Volumes/T2TB/Isotropy/offset/plots/deltaOffset.pdf')
+plt.show()
+sys.exit()
+    
+    ## # read the start and end times of observation, use (tai_beg+tai_end)/2 as the time of observation
+    ## sys.exit()
+    ## tai_beg = h['TAI-BEG']
+    ## tai_end = h['TAI-END']
+    ## tai_cen = (tai_beg+tai_end)/2.0
+    
+    ## obj  = SkyCoord(ra=raPointObs*u.degree, dec=decPointObs*u.degree, frame='fk5')
+    ## time = Time(val=(tai_cen)/(24*3600.0), format='mjd', scale='tai')#,location=APO)
+
+    ## objaltaz = obj.transform_to(AltAz(obstime=time,location=APO))
+    ## print "Altitude = {0.alt:.2}".format(objaltaz)
+
+    ## degToRad = n.pi/180.0   ; radToDeg = 180.0/n.pi
+    ## sinAlt = n.sin(dec*degToRad)*n.sin(lat*degToRad)+n.cos(dec*degToRad)*n.cos(lat*degToRad)*n.cos(ha*degToRad)
+    ## alt = n.arcsin(sinAlt)*radToDeg
+
+    ## print 'HA = {0}, RA = {1}, Dec = {2}, Alt = {3}'.format(ha, ra, dec, alt)
+    ## sys.exit()
+

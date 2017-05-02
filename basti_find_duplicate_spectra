@@ -1,0 +1,82 @@
+#!/usr/bin/env python
+
+import numpy as np
+import fitsio
+from bisect import *
+
+
+def index(a, x):
+    'Locate the leftmost value exactly equal to x'
+    i = bisect_left(a, x)
+    if i != len(a) and a[i] == x:
+        return i
+    raise ValueError
+
+
+hdu_quasar = fitsio.FITS('/home/basti/SDSS_indie/DR10_spectra/DR10Q_v2.fits')
+hdu = fitsio.FITS('/mnt/Daten/spAll-v5_5_12.fits')
+
+thing_qso = hdu_quasar[1]['THING_ID'][:]
+
+mjd   = hdu[1]['MJD'][:]
+plate = hdu[1]['PLATE'][:]
+fiber = hdu[1]['FIBERID'][:]
+thing = hdu[1]['THING_ID'][:]
+platequal = hdu[1]['PLATEQUALITY'][:]
+specprim = hdu[1]['SPECPRIMARY'][:]
+
+#count = np.size(np.where((specprim == 1) & ()[0])
+c = 0
+
+thing_qso = np.sort(thing_qso)
+sort_indices = np.argsort(thing)
+thing = np.sort(thing)
+#thing_qso = thing_qso[sort_indices]
+mjd_sort = mjd[sort_indices]
+plate_sort = plate[sort_indices]
+fiber_sort = fiber[sort_indices]
+
+dict = []
+
+for i, el in enumerate(thing_qso):
+    if i % 500 == 0:
+        print i, 'done'
+    ind = index(thing, el)
+    k = 0
+    while True:
+        if thing[ind+k] == el:
+            k += 1
+        else:
+            break
+    if k > 1:
+        for i in xrange(k):
+            try:
+                dict.append((thing[ind+i], mjd_sort[ind+i], plate_sort[ind+i], fiber_sort[ind+i]))
+            except IndexError:
+                print ind+k, np.size(thing), np.size(mjd_sort), np.size(plate_sort), np.size(fiber_sort)
+                
+
+
+# for i, el in enumerate(thing):
+#     if i % 500 == 0:
+#         print i, 'done'
+#     if el in thing_qso:
+#         c += 1
+
+# print c
+out = open('duplicates_DR10.txt', 'w')
+print 'write to file'
+for el in dict:
+    path = './spec-' + str(el[2]).zfill(4) + '-' + str(el[1]) + '-' + str(el[3]).zfill(4) + '.fits'
+    print>>out, path, el[0], el[1], el[2], el[3]
+
+out.close()
+#print count
+
+#dict = hdu[1]['THING_ID','PLATE','MJD'][:]
+
+#for el in dict:
+    
+#print np.size(thing)
+#print np.size(np.unique(thing))
+
